@@ -20,7 +20,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from selenium.common.exceptions import NoSuchElementException, NoSuchFrameException, NoSuchWindowException
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    NoSuchFrameException,
+    NoSuchWindowException,
+    WebDriverException,
+)
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.command import Command
 from selenium.webdriver.remote.webelement import WebElement
@@ -128,13 +133,19 @@ class SwitchTo:
         try:
             # Try using it as a handle first.
             send_handle(window_name)
-        except NoSuchWindowException:
-            # Check every window to try to find the given window name.
+        except NoSuchWindowException as missing:
+            # Not a handle. Look for a window whose window.name matches.
             original_handle = self._driver.current_window_handle
-            handles = self._driver.window_handles
-            for handle in handles:
-                send_handle(handle)
-                current_name = self._driver.execute_script("return window.name")
+            for handle in self._driver.window_handles:
+                try:
+                    send_handle(handle)
+                    current_name = self._driver.execute_script("return window.name")
+                except NoSuchWindowException:
+                    continue
+                except WebDriverException as blocked:
+                    # An alert blocks the name read. Get back before reporting the miss.
+                    send_handle(original_handle)
+                    raise missing from blocked
                 if window_name == current_name:
                     return
             send_handle(original_handle)

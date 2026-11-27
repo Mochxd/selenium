@@ -167,6 +167,26 @@ def test_can_obtain_awindow_handle(driver, pages):
     assert currentHandle is not None
 
 
+def test_missing_window_name_restores_the_original_window_when_another_window_has_an_alert(driver, pages):
+    pages.load("xhtmlTest.html")
+    original = driver.current_window_handle
+    driver.execute_script("window.open('about:blank')")
+    WebDriverWait(driver, 3).until(EC.number_of_windows_to_be(2))
+    other = next(handle for handle in driver.window_handles if handle != original)
+    try:
+        driver.switch_to.window(other)
+        driver.execute_script("alert('open')")
+        driver.switch_to.window(original)
+        with pytest.raises(NoSuchWindowException):
+            driver.switch_to.window("no-such-window")
+        assert driver.current_window_handle == original
+    finally:
+        driver.switch_to.window(other)
+        driver.switch_to.alert.accept()
+        driver.close()
+        driver.switch_to.window(original)
+
+
 def test_failing_to_switch_to_awindow_leaves_the_current_window_as_is(driver, pages):
     pages.load("xhtmlTest.html")
     current = driver.current_window_handle
